@@ -56,6 +56,7 @@ python src/web_app.py
 
 ## Структура проекта
 
+
 ```
 generationTextSerega/
 ├── src/
