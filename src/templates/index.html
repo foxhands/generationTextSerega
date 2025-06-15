@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор статей</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .error {
+            display: none;
+            color: red;
+            margin: 10px 0;
+        }
+        .result {
+            display: none;
+            margin-top: 20px;
+        }
+        .quality-metrics {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .download-links {
+            margin-top: 15px;
+        }
+        .download-links a {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Генератор статей</h1>
+        
+        <form id="articleForm">
+            <div class="mb-3">
+                <label for="language" class="form-label">Язык</label>
+                <select class="form-select" id="language" name="language" required>
+                    <option value="ru">Русский</option>
+                    <option value="ua">Украинский</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="category" class="form-label">Категория</label>
+                <select class="form-select" id="category" name="category" required>
+                    <option value="">Выберите категорию</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" data-language="{{ category.language }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="topic" class="form-label">Тема</label>
+                <select class="form-select" id="topic" name="topic" required disabled>
+                    <option value="">Сначала выберите категорию</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="customTopic" class="form-label">Или введите свою тему</label>
+                <input type="text" class="form-control" id="customTopic" name="customTopic">
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Сгенерировать статью</button>
+        </form>
+        
+        <div id="loading" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p>Генерация статьи...</p>
+        </div>
+        
+        <div id="error" class="error alert alert-danger"></div>
+        
+        <div id="result" class="result">
+            <h2 id="articleTitle"></h2>
+            <div id="articleContent" class="mt-4"></div>
+            
+            <div class="quality-metrics">
+                <h3>Метрики качества</h3>
+                <div id="qualityMetrics"></div>
+            </div>
+            
+            <div class="download-links">
+                <h3>Скачать</h3>
+                <div id="downloadLinks"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('articleForm');
+            const languageSelect = document.getElementById('language');
+            const categorySelect = document.getElementById('category');
+            const topicSelect = document.getElementById('topic');
+            const customTopicInput = document.getElementById('customTopic');
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const resultDiv = document.getElementById('result');
+            
+            // Загружаем категории при загрузке страницы
+            loadCategories();
+            
+            // Загрузка категорий при изменении языка
+            languageSelect.addEventListener('change', loadCategories);
+            
+            // Загрузка тем при изменении категории
+            categorySelect.addEventListener('change', loadTopics);
+            
+            // Обработка отправки формы
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const topic = customTopicInput.value || topicSelect.value;
+                if (!topic) {
+                    showError('Пожалуйста, выберите тему или введите свою');
+                    return;
+                }
+                
+                const data = {
+                    topic: topic,
+                    language: languageSelect.value,
+                    category: categorySelect.value
+                };
+                
+                try {
+                    showLoading();
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Ошибка при генерации статьи');
+                    }
+                    
+                    showResult(result);
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    hideLoading();
+                }
+            });
+            
+            // Загрузка категорий
+            async function loadCategories() {
+                const language = languageSelect.value;
+                try {
+                    const response = await fetch(`/api/categories?language=${language}`);
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Ошибка при загрузке категорий');
+                    }
+                    
+                    categorySelect.innerHTML = '<option value="">Выберите категорию</option>';
+                    data.categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category;
+                        option.textContent = category;
+                        categorySelect.appendChild(option);
+                    });
+                    
+                    topicSelect.disabled = true;
+                    topicSelect.innerHTML = '<option value="">Сначала выберите категорию</option>';
+                } catch (error) {
+                    showError('Ошибка при загрузке категорий');
+                }
+            }
+            
+            // Загрузка тем
+            async function loadTopics() {
+                const category = categorySelect.value;
+                const language = languageSelect.value;
+                
+                console.log('Загрузка тем для категории:', category, 'язык:', language);
+                
+                if (!category) {
+                    topicSelect.disabled = true;
+                    topicSelect.innerHTML = '<option value="">Сначала выберите категорию</option>';
+                    return;
+                }
+                
+                try {
+                    const url = `/api/topics?category=${encodeURIComponent(category)}&language=${language}`;
+                    console.log('Запрос к URL:', url);
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    console.log('Получен ответ:', data);
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Ошибка при загрузке тем');
+                    }
+                    
+                    topicSelect.disabled = false;
+                    topicSelect.innerHTML = '<option value="">Выберите тему</option>';
+                    
+                    if (data.topics && Array.isArray(data.topics)) {
+                        data.topics.forEach(topic => {
+                            const option = document.createElement('option');
+                            option.value = topic;
+                            option.textContent = topic;
+                            topicSelect.appendChild(option);
+                        });
+                    } else {
+                        console.error('Неверный формат данных:', data);
+                        throw new Error('Неверный формат данных');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при загрузке тем:', error);
+                    showError('Ошибка при загрузке тем');
+                    topicSelect.disabled = true;
+                    topicSelect.innerHTML = '<option value="">Ошибка загрузки тем</option>';
+                }
+            }
+            
+            // Показать загрузку
+            function showLoading() {
+                loadingDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+                resultDiv.style.display = 'none';
+            }
+            
+            // Скрыть загрузку
+            function hideLoading() {
+                loadingDiv.style.display = 'none';
+            }
+            
+            // Показать ошибку
+            function showError(message) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+            
+            // Показать результат
+            function showResult(result) {
+                const article = result.article;
+                
+                document.getElementById('articleTitle').textContent = article.metadata.title;
+                document.getElementById('articleContent').innerHTML = article.content;
+                
+                // Метрики качества
+                const metrics = article.metadata;
+                const metricsHtml = `
+                    <p><strong>Читаемость:</strong> ${metrics.readability_score}</p>
+                    <p><strong>Количество слов:</strong> ${metrics.word_count}</p>
+                    <p><strong>Ключевые слова:</strong> ${metrics.keywords.join(', ')}</p>
+                `;
+                document.getElementById('qualityMetrics').innerHTML = metricsHtml;
+                
+                // Ссылки для скачивания
+                const files = article.files;
+                const linksHtml = `
+                    <a href="${files.txt}" class="btn btn-primary">TXT</a>
+                    <a href="${files.markdown}" class="btn btn-primary">Markdown</a>
+                    <a href="${files.html}" class="btn btn-primary">HTML</a>
+                `;
+                document.getElementById('downloadLinks').innerHTML = linksHtml;
+                
+                resultDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html> 

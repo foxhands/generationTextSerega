@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3 text-center">
+        <div class="error-template">
+            <h1>404</h1>
+            <h2>Страница не найдена</h2>
+            <div class="error-details">
+                Извините, запрашиваемая страница не существует.
+            </div>
+            <div class="error-actions mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-home"></i> Вернуться на главную
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

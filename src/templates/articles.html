@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center">Сгенерированные статьи</h2>
+            </div>
+            <div class="card-body">
+                {% if articles %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Размер</th>
+                                <th>Дата создания</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for article in articles %}
+                            <tr>
+                                <td>{{ article.name }}</td>
+                                <td>{{ (article.size / 1024)|round(1) }} KB</td>
+                                <td>{{ article.created }}</td>
+                                <td>
+                                    <a href="{{ url_for('download_article', filename=article.name) }}" 
+                                       class="btn btn-sm btn-primary">
+                                        Скачать
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Нет сгенерированных статей
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

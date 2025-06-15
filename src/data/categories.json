@@ -1,0 +1,166 @@
+{
+    "ru": {
+        "equipment": {
+            "name": "Снаряжение",
+            "description": "Статьи о снаряжении для страйкбола",
+            "topics": [
+                "Выбор тактического жилета",
+                "Защитное снаряжение для новичков",
+                "Обзор страйкбольных шлемов",
+                "Выбор страйкбольных очков",
+                "Тактические перчатки для страйкбола",
+                "Выбор обуви для страйкбола",
+                "Страйкбольная форма и камуфляж",
+                "Тактические рюкзаки и сумки",
+                "Страйкбольные наколенники и налокотники",
+                "Выбор страйкбольного шлема"
+            ]
+        },
+        "weapons": {
+            "name": "Оружие",
+            "description": "Статьи об оружии для страйкбола",
+            "topics": [
+                "Выбор первой страйкбольной винтовки",
+                "Обзор страйкбольных пистолетов",
+                "Модернизация страйкбольного оружия",
+                "Уход за страйкбольным оружием",
+                "Выбор прицелов для страйкбола",
+                "Страйкбольные глушители",
+                "Тактические фонари для страйкбола",
+                "Выбор магазинов для страйкбола",
+                "Страйкбольные гранаты и взрывпакеты",
+                "Обзор страйкбольных пулеметов"
+            ]
+        },
+        "tactics": {
+            "name": "Тактика",
+            "description": "Статьи о тактике и стратегии в страйкболе",
+            "topics": [
+                "Основы тактики в страйкболе",
+                "Командная игра в страйкболе",
+                "Тактические приемы для новичков",
+                "Стратегия захвата флага",
+                "Тактика защиты базы",
+                "Маскировка и скрытность",
+                "Тактические передвижения",
+                "Командная коммуникация",
+                "Тактика в закрытых помещениях",
+                "Стратегия в лесной местности"
+            ]
+        },
+        "events": {
+            "name": "Мероприятия",
+            "description": "Статьи о страйкбольных мероприятиях и играх",
+            "topics": [
+                "Подготовка к страйкбольной игре",
+                "Правила страйкбольных игр",
+                "Организация страйкбольного мероприятия",
+                "Типы страйкбольных игр",
+                "Страйкбольные турниры",
+                "Сценарии страйкбольных игр",
+                "Безопасность на страйкбольных играх",
+                "Страйкбольные клубы и команды",
+                "Международные страйкбольные мероприятия",
+                "Страйкбольные фестивали"
+            ]
+        },
+        "maintenance": {
+            "name": "Обслуживание",
+            "description": "Статьи по обслуживанию и ремонту страйкбольного оборудования",
+            "topics": [
+                "Обслуживание страйкбольного оружия",
+                "Ремонт страйкбольных винтовок",
+                "Уход за страйкбольным снаряжением",
+                "Чистка и смазка страйкбольного оружия",
+                "Хранение страйкбольного оборудования",
+                "Замена деталей в страйкбольном оружии",
+                "Настройка хопа в страйкболе",
+                "Обслуживание страйкбольных магазинов",
+                "Ремонт страйкбольных пистолетов",
+                "Уход за страйкбольной формой"
+            ]
+        }
+    },
+    "en": {
+        "equipment": {
+            "name": "Equipment",
+            "description": "Articles about airsoft equipment",
+            "topics": [
+                "Choosing a tactical vest",
+                "Protective gear for beginners",
+                "Airsoft helmet review",
+                "Choosing airsoft goggles",
+                "Tactical gloves for airsoft",
+                "Choosing airsoft footwear",
+                "Airsoft uniform and camouflage",
+                "Tactical backpacks and bags",
+                "Airsoft knee and elbow pads",
+                "Choosing an airsoft helmet"
+            ]
+        },
+        "weapons": {
+            "name": "Weapons",
+            "description": "Articles about airsoft weapons",
+            "topics": [
+                "Choosing your first airsoft rifle",
+                "Airsoft pistol review",
+                "Airsoft weapon upgrades",
+                "Airsoft weapon maintenance",
+                "Choosing sights for airsoft",
+                "Airsoft suppressors",
+                "Tactical lights for airsoft",
+                "Choosing airsoft magazines",
+                "Airsoft grenades and explosive packs",
+                "Airsoft machine gun review"
+            ]
+        },
+        "tactics": {
+            "name": "Tactics",
+            "description": "Articles about airsoft tactics and strategy",
+            "topics": [
+                "Basic airsoft tactics",
+                "Team play in airsoft",
+                "Tactical techniques for beginners",
+                "Flag capture strategy",
+                "Base defense tactics",
+                "Camouflage and stealth",
+                "Tactical movements",
+                "Team communication",
+                "Indoor tactics",
+                "Forest terrain strategy"
+            ]
+        },
+        "events": {
+            "name": "Events",
+            "description": "Articles about airsoft events and games",
+            "topics": [
+                "Preparing for an airsoft game",
+                "Airsoft game rules",
+                "Organizing an airsoft event",
+                "Types of airsoft games",
+                "Airsoft tournaments",
+                "Airsoft game scenarios",
+                "Safety at airsoft games",
+                "Airsoft clubs and teams",
+                "International airsoft events",
+                "Airsoft festivals"
+            ]
+        },
+        "maintenance": {
+            "name": "Maintenance",
+            "description": "Articles about airsoft equipment maintenance and repair",
+            "topics": [
+                "Airsoft weapon maintenance",
+                "Airsoft rifle repair",
+                "Airsoft equipment care",
+                "Cleaning and lubricating airsoft weapons",
+                "Storing airsoft equipment",
+                "Replacing airsoft weapon parts",
+                "Hop-up adjustment",
+                "Airsoft magazine maintenance",
+                "Airsoft pistol repair",
+                "Airsoft uniform care"
+            ]
+        }
+    }
+} 

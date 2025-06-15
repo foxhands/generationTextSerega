@@ -1,0 +1,144 @@
+/* Общие стили */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    flex: 1;
+}
+
+/* Стили для форм */
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Стили для карточек */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 2rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+/* Стили для кнопок */
+.btn {
+    padding: 0.5rem 1.5rem;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* Стили для таблиц */
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+/* Стили для загрузки */
+#loading {
+    padding: 2rem 0;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Стили для результатов */
+#result {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 0.25rem;
+}
+
+#metadataList {
+    list-style: none;
+    padding-left: 0;
+}
+
+#metadataList li {
+    margin-bottom: 0.5rem;
+}
+
+/* Стили для футера */
+.footer {
+    margin-top: auto;
+    background-color: #f8f9fa;
+    padding: 1rem 0;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Стили для страниц ошибок */
+.error-template {
+    padding: 40px 15px;
+    text-align: center;
+}
+
+.error-template h1 {
+    font-size: 80px;
+    font-weight: bold;
+    color: #dc3545;
+    margin-bottom: 20px;
+}
+
+.error-template h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.error-details {
+    color: #6c757d;
+    margin-bottom: 30px;
+}
+
+.error-actions {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.error-actions .btn {
+    margin-right: 10px;
+}
+
+/* Адаптивные стили */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 1rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .error-template h1 {
+        font-size: 60px;
+    }
+    
+    .error-template h2 {
+        font-size: 20px;
+    }
+} 
