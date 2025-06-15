@@ -18,3 +18,8 @@ __pycache__/
 .env.test
 .env.production
 .idea/
+.vscode/
+.DS_Store
+.gitignore
+.gitignore
+.idea
