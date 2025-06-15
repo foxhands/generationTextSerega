@@ -5,20 +5,25 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file
 from pathlib import Path
 
-from config.config import Config
-from core.article_generator import ArticleGenerator
-from core.category_manager import CategoryManager
-from services.quality_checker import ArticleQualityChecker
+from src.config.config import Config
+from src.core.article_generator import ArticleGenerator
+from src.models.article import Article, ArticleMetadata
 
 # Настройка логирования
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    encoding='utf-8'
+    encoding='utf-8',
+    handlers=[
+        logging.FileHandler('src/web_app.log'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
+# Инициализация приложения
 app = Flask(__name__)
+config = Config()
 app.config['SECRET_KEY'] = os.urandom(24)
 
 # Константы
@@ -116,51 +121,17 @@ def generate_article():
         if not article:
             logger.error("Не удалось сгенерировать статью")
             return jsonify({"error": "Не удалось сгенерировать статью"}), 500
-            
-        # Сохранение статьи
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename_base = f"article_{timestamp}"
-        
-        # Создаем директорию для статей, если её нет
-        os.makedirs(ARTICLES_DIR, exist_ok=True)
-        
-        # Сохраняем в разных форматах
-        txt_path = os.path.join(ARTICLES_DIR, f"{filename_base}.txt")
-        md_path = os.path.join(ARTICLES_DIR, f"{filename_base}.md")
-        html_path = os.path.join(ARTICLES_DIR, f"{filename_base}.html")
-        
-        logger.info(f"Сохраняем статью в файлы: {txt_path}, {md_path}, {html_path}")
-        
-        with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write(article.to_text())
-            
-        with open(md_path, 'w', encoding='utf-8') as f:
-            f.write(article.to_markdown())
-            
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(article.metadata.html_report)
-        
-        logger.info(f"Статья успешно сгенерирована и сохранена")
         
         # Формируем ответ
         response = {
             "success": True,
             "article": {
                 "content": article.content,
-                "metadata": {
-                    "title": article.metadata.title,
-                    "language": article.metadata.language,
-                    "category": article.metadata.category,
-                    "created_at": article.metadata.created_at.isoformat(),
-                    "word_count": article.metadata.word_count,
-                    "readability_score": article.metadata.readability_score,
-                    "keywords": article.metadata.keywords,
-                    "validation_passed": article.metadata.validation_passed
-                },
+                "metadata": article.metadata.to_dict(),
                 "files": {
-                    "txt": f"/download/{filename_base}.txt",
-                    "markdown": f"/download/{filename_base}.md",
-                    "html": f"/download/{filename_base}.html"
+                    "txt": f"/download/{os.path.basename(article.metadata.article_id)}.txt",
+                    "markdown": f"/download/{os.path.basename(article.metadata.article_id)}.md",
+                    "html": f"/download/{os.path.basename(article.metadata.article_id)}.html"
                 }
             }
         }
@@ -176,14 +147,66 @@ def generate_article():
 def download_file(filename):
     """Скачивание сгенерированного файла"""
     try:
-        return send_file(
-            os.path.join(ARTICLES_DIR, filename),
-            as_attachment=True,
-            download_name=filename
-        )
+        # Проверяем наличие файла в директории articles
+        filepath = os.path.join(ARTICLES_DIR, filename)
+        if os.path.exists(filepath):
+            return send_file(
+                filepath,
+                as_attachment=True,
+                download_name=filename
+            )
+        
+        # Если не нашли, проверяем путь article_id
+        article_id = os.path.splitext(filename)[0]
+        extension = os.path.splitext(filename)[1]
+        
+        # Ищем все файлы в директории, которые содержат этот article_id
+        for file in os.listdir(ARTICLES_DIR):
+            if article_id in file and file.endswith(extension):
+                filepath = os.path.join(ARTICLES_DIR, file)
+                return send_file(
+                    filepath,
+                    as_attachment=True,
+                    download_name=filename
+                )
+                
+        # Если не нашли файл
+        logger.error(f"Файл не найден: {filename}")
+        return jsonify({"error": "Файл не найден"}), 404
     except Exception as e:
         logger.error(f"Ошибка при скачивании файла: {str(e)}")
         return jsonify({"error": "Файл не найден"}), 404
+
+@app.route('/api/check-connection')
+def check_connection():
+    """Проверка соединения с LM Studio"""
+    from services.lm_service import LanguageModelService
+    
+    try:
+        lm_service = LanguageModelService()
+        is_connected = lm_service.test_connection()
+        
+        if is_connected:
+            return jsonify({"status": "connected", "message": "Соединение с LM Studio установлено"})
+        else:
+            return jsonify({"status": "disconnected", "message": "Не удалось установить соединение с LM Studio"}), 503
+    except Exception as e:
+        logger.error(f"Ошибка при проверке соединения: {str(e)}")
+        return jsonify({"status": "error", "message": f"Ошибка при проверке соединения: {str(e)}"}), 500
+
+@app.route('/api/models')
+def get_models():
+    """Получение списка доступных моделей"""
+    from services.lm_service import LanguageModelService
+    
+    try:
+        lm_service = LanguageModelService()
+        models = lm_service.get_supported_models()
+        
+        return jsonify({"models": models})
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка моделей: {str(e)}")
+        return jsonify({"error": f"Ошибка при получении списка моделей: {str(e)}"}), 500
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -194,4 +217,13 @@ def internal_error(error):
     return jsonify({"error": "Внутренняя ошибка сервера"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    # Проверяем и создаем директорию для статей
+    os.makedirs(ARTICLES_DIR, exist_ok=True)
+    
+    # Получаем конфигурацию для веб-сервера
+    web_host = config.get('web.host', '0.0.0.0')
+    web_port = config.get('web.port', 5000)
+    web_debug = config.get('web.debug', True)
+    
+    logger.info(f"Запуск веб-приложения на {web_host}:{web_port}, debug={web_debug}")
+    app.run(host=web_host, port=web_port, debug=web_debug) 

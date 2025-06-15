@@ -1,188 +1,427 @@
 import re
-from typing import Dict, List, Tuple
 import logging
+from typing import Dict, List, Tuple, Any, Set
+from collections import Counter
 import textstat
-from dataclasses import dataclass
-from .text_analyzer import TextAnalyzer
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class QualityMetrics:
-    """Метрики качества статьи"""
-    readability: float
-    keyword_density: Dict[str, float]
-    overused_words: List[str]
-    errors: List[str]
-    html_report: str
-
 class ArticleQualityChecker:
-    """Проверка качества статьи"""
+    """Класс для проверки качества сгенерированных статей"""
     
     def __init__(self):
-        """Инициализация проверки качества"""
-        self.target_readability = 5.0  # Снижаем порог читабельности
-        self.text_analyzer = TextAnalyzer()
+        """Инициализация проверщика качества"""
+        self.min_word_count = 500
+        self.min_readability = 5.0
+        self.min_headings = 3
+        self.min_paragraphs = 5
+        self.language_stop_words = {
+            'ru': set(['и', 'в', 'на', 'с', 'по', 'для', 'от', 'к', 'за', 'из', 'о', 'что', 'как', 'это']),
+            'ua': set(['і', 'в', 'на', 'з', 'по', 'для', 'від', 'до', 'за', 'із', 'про', 'що', 'як', 'це'])
+        }
+        logger.info("Инициализация ArticleQualityChecker завершена")
         
-    def comprehensive_check(self, article_text: str, is_html: bool = False) -> Tuple[bool, QualityMetrics]:
-        """
-        Комплексная проверка качества статьи
+    def comprehensive_check(self, content: str, language: str = 'ru') -> Tuple[bool, Dict[str, Any]]:
+        """Комплексная проверка качества статьи
         
         Args:
-            article_text: Текст статьи
-            is_html: Флаг, указывающий что входной текст в формате HTML
+            content (str): Текст статьи
+            language (str, optional): Язык статьи ('ru' или 'ua'). По умолчанию 'ru'.
             
         Returns:
-            Tuple[bool, QualityMetrics]: (прошла ли проверку, метрики качества)
+            Tuple[bool, Dict[str, Any]]: (результат проверки, метрики качества)
         """
         try:
-            # Анализ текста
-            analysis_result = self.text_analyzer.analyze_text(article_text, is_html)
+            # Собираем все результаты анализа
+            metrics = {}
+            error_messages = []
             
-            # Проверка читабельности
-            if analysis_result.readability_score < self.target_readability:
-                logger.warning(f"Низкая читабельность: {analysis_result.readability_score:.2f} < {self.target_readability}")
-                return False, QualityMetrics(
-                    readability=analysis_result.readability_score,
-                    keyword_density=analysis_result.keyword_density,
-                    overused_words=analysis_result.overused_words,
-                    errors=["Низкая читабельность"],
-                    html_report=analysis_result.html_report
-                )
-                
-            # Проверка на переиспользование слов
-            if analysis_result.overused_words:
-                logger.warning(f"Найдены переиспользуемые слова: {len(analysis_result.overused_words)}")
-                return False, QualityMetrics(
-                    readability=analysis_result.readability_score,
-                    keyword_density=analysis_result.keyword_density,
-                    overused_words=analysis_result.overused_words,
-                    errors=["Обнаружены переиспользуемые слова"],
-                    html_report=analysis_result.html_report
-                )
-                
-            return True, QualityMetrics(
-                readability=analysis_result.readability_score,
-                keyword_density=analysis_result.keyword_density,
-                overused_words=analysis_result.overused_words,
-                errors=[],
-                html_report=analysis_result.html_report
-            )
+            # Базовый анализ структуры и содержания
+            structure_metrics = self._analyze_structure(content)
+            metrics.update(structure_metrics)
+            
+            # Проверка длины статьи
+            word_count = structure_metrics.get('word_count', 0)
+            if word_count < self.min_word_count:
+                error_messages.append(f"Статья слишком короткая: {word_count} слов (минимум {self.min_word_count})")
+            metrics['has_sufficient_length'] = word_count >= self.min_word_count
+            
+            # Анализ читабельности
+            readability_metrics = self._analyze_readability(content, language)
+            metrics.update(readability_metrics)
+            
+            readability_score = readability_metrics.get('readability_score', 0)
+            if readability_score < self.min_readability:
+                error_messages.append(f"Низкий показатель читабельности: {readability_score:.1f} (минимум {self.min_readability})")
+            metrics['has_good_readability'] = readability_score >= self.min_readability
+            
+            # Извлечение ключевых слов
+            keyword_metrics = self._extract_keywords(content, language)
+            metrics.update(keyword_metrics)
+            
+            # Проверка структуры
+            if metrics.get('headings_count', 0) < self.min_headings:
+                error_messages.append(f"Недостаточно заголовков: {metrics.get('headings_count', 0)} (минимум {self.min_headings})")
+            metrics['has_good_structure'] = metrics.get('headings_count', 0) >= self.min_headings
+            
+            if metrics.get('paragraphs_count', 0) < self.min_paragraphs:
+                error_messages.append(f"Недостаточно параграфов: {metrics.get('paragraphs_count', 0)} (минимум {self.min_paragraphs})")
+            metrics['has_enough_paragraphs'] = metrics.get('paragraphs_count', 0) >= self.min_paragraphs
+            
+            # Генерация HTML-отчета
+            metrics['html_report'] = self._generate_html_report(content, metrics)
+            metrics['errors'] = error_messages
+            
+            # Итоговое решение о качестве
+            passed = all([
+                metrics.get('has_sufficient_length', False),
+                metrics.get('has_good_readability', False),
+                metrics.get('has_good_structure', False),
+                metrics.get('has_enough_paragraphs', False)
+            ])
+            
+            if passed:
+                logger.info(f"Статья прошла проверку качества. Метрики: {metrics}")
+            else:
+                logger.warning(f"Статья не прошла проверку качества: {error_messages}")
+            
+            return passed, metrics
             
         except Exception as e:
-            logger.error(f"Ошибка при проверке качества: {str(e)}")
-            return False, QualityMetrics(
-                readability=0.0,
-                keyword_density={},
-                overused_words=[],
-                errors=[str(e)],
-                html_report="<p>Ошибка при анализе текста</p>"
-            )
-
-    def _analyze_readability(self, content: str, language: str) -> Dict:
-        """Анализирует читабельность текста"""
-        # Разбиваем на предложения, учитывая различные знаки препинания
-        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if s.strip()]
-        words = [w.strip() for w in content.split() if w.strip()]
+            logger.error(f"Ошибка при проверке качества статьи: {str(e)}", exc_info=True)
+            return False, {"errors": [f"Ошибка анализа: {str(e)}"]}
+    
+    def _analyze_structure(self, content: str) -> Dict[str, Any]:
+        """Анализ структуры текста
         
-        if not sentences or not words:
-            return {
-                "score": 0,
-                "avg_sentence_length": 0,
-                "avg_word_length": 0,
-                "sentence_count": 0,
-                "word_count": 0
-            }
+        Args:
+            content (str): Текст статьи
+            
+        Returns:
+            Dict[str, Any]: Метрики структуры
+        """
+        result = {}
         
-        # Считаем среднюю длину предложения
-        avg_sentence_length = len(words) / len(sentences)
+        # Количество слов
+        words = re.findall(r'\b\w+\b', content.lower())
+        result['word_count'] = len(words)
         
-        # Считаем среднюю длину слова
-        avg_word_length = sum(len(word) for word in words) / len(words)
+        # Количество предложений
+        sentences = re.split(r'[.!?]+', content)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        result['sentence_count'] = len(sentences)
         
-        # Считаем количество сложных слов (более 6 букв)
-        complex_words = sum(1 for word in words if len(word) > 6)
-        complex_word_ratio = complex_words / len(words)
+        # Средняя длина предложения
+        if result['sentence_count'] > 0:
+            result['avg_sentence_length'] = result['word_count'] / result['sentence_count']
+        else:
+            result['avg_sentence_length'] = 0
+            
+        # Количество параграфов
+        paragraphs = content.split('\n\n')
+        paragraphs = [p.strip() for p in paragraphs if p.strip()]
+        result['paragraphs_count'] = len(paragraphs)
         
-        # Используем textstat для оценки читабельности
+        # Количество заголовков
+        headings = re.findall(r'^#+\s+.+$', content, re.MULTILINE)
+        result['headings_count'] = len(headings)
+        
+        # Выделенный текст
+        bold_text = re.findall(r'\*\*.+?\*\*', content)
+        result['bold_count'] = len(bold_text)
+        
+        # Списки
+        list_items = re.findall(r'^[-*]\s+.+$', content, re.MULTILINE)
+        result['list_item_count'] = len(list_items)
+        
+        return result
+        
+    def _analyze_readability(self, content: str, language: str) -> Dict[str, Any]:
+        """Анализ читабельности текста
+        
+        Args:
+            content (str): Текст статьи
+            language (str): Язык статьи
+            
+        Returns:
+            Dict[str, Any]: Метрики читабельности
+        """
+        result = {}
+        
         try:
-            # Flesch Reading Ease для русского текста
+            # Настраиваем textstat в зависимости от языка
+            if language == 'ru':
+                textstat.set_lang('ru')
+            elif language == 'ua':
+                textstat.set_lang('uk')  # Украинский в textstat
+            else:
+                textstat.set_lang('ru')  # По умолчанию используем русский
+                
+            # Получаем различные метрики читабельности
             flesch_score = textstat.flesch_reading_ease(content)
-            # Нормализуем оценку в диапазон 0-10
-            normalized_flesch = max(0, min(10, flesch_score / 10))
+            result['readability_score'] = flesch_score
             
-            # Дополнительные метрики
-            sentence_score = max(0, 10 - (avg_sentence_length / 3))  # 10 баллов за короткие предложения
-            word_score = max(0, 10 - (avg_word_length * 1.5))  # 10 баллов за короткие слова
-            complexity_score = max(0, 10 - (complex_word_ratio * 50))  # 10 баллов за простые слова
+            # Сложность чтения
+            if flesch_score >= 80:
+                result['readability_level'] = 'Очень легко читаемый'
+            elif flesch_score >= 70:
+                result['readability_level'] = 'Легко читаемый'
+            elif flesch_score >= 60:
+                result['readability_level'] = 'Средней сложности'
+            elif flesch_score >= 50:
+                result['readability_level'] = 'Умеренно сложный'
+            else:
+                result['readability_level'] = 'Сложный для чтения'
+                
+            # Дополнительные метрики, если доступны для языка
+            try:
+                result['smog_index'] = textstat.smog_index(content)
+            except:
+                result['smog_index'] = 0
+                
+            try:
+                result['syllable_count'] = textstat.syllable_count(content)
+            except:
+                result['syllable_count'] = 0
+                
+        except Exception as e:
+            logger.error(f"Ошибка при анализе читабельности: {str(e)}")
+            result['readability_score'] = 0
+            result['readability_level'] = 'Не удалось определить'
             
-            # Итоговая оценка - взвешенное среднее
-            final_score = (normalized_flesch * 0.4 + sentence_score * 0.3 + word_score * 0.2 + complexity_score * 0.1)
+        return result
+        
+    def _extract_keywords(self, content: str, language: str) -> Dict[str, Any]:
+        """Извлечение ключевых слов из текста
+        
+        Args:
+            content (str): Текст статьи
+            language (str): Язык статьи
+            
+        Returns:
+            Dict[str, Any]: Метрики ключевых слов
+        """
+        result = {}
+        
+        try:
+            # Получаем стоп-слова для указанного языка
+            stop_words = self.language_stop_words.get(language, set())
+            
+            # Приводим текст к нижнему регистру и разделяем на слова
+            words = re.findall(r'\b\w{3,}\b', content.lower())
+            
+            # Удаляем стоп-слова
+            filtered_words = [word for word in words if word not in stop_words]
+            
+            # Подсчет частот слов
+            word_counts = Counter(filtered_words)
+            
+            # Отбираем топ-20 наиболее часто встречающихся слов
+            top_keywords = word_counts.most_common(20)
+            
+            # Создаем словарь частот для наиболее частых слов
+            keyword_density = {word: count / len(filtered_words) for word, count in top_keywords}
+            
+            result['keywords'] = [word for word, _ in top_keywords]
+            result['keyword_density'] = keyword_density
+            result['keyword_count'] = len(result['keywords'])
             
         except Exception as e:
-            logging.warning(f"Ошибка при использовании textstat: {e}")
-            # Если textstat не сработал, используем нашу формулу
-            sentence_score = max(0, 10 - (avg_sentence_length / 3))
-            word_score = max(0, 10 - (avg_word_length * 1.5))
-            complexity_score = max(0, 10 - (complex_word_ratio * 50))
-            final_score = (sentence_score + word_score + complexity_score) / 3
+            logger.error(f"Ошибка при извлечении ключевых слов: {str(e)}")
+            result['keywords'] = []
+            result['keyword_density'] = {}
+            result['keyword_count'] = 0
+            
+        return result
         
-        return {
-            "score": final_score,
-            "avg_sentence_length": avg_sentence_length,
-            "avg_word_length": avg_word_length,
-            "sentence_count": len(sentences),
-            "word_count": len(words),
-            "complex_word_ratio": complex_word_ratio,
-            "sentence_score": sentence_score,
-            "word_score": word_score,
-            "complexity_score": complexity_score
-        }
-
-    def _extract_keywords(self, content: str, language: str) -> Dict:
-        """Извлекает ключевые слова из текста"""
-        # Удаляем знаки препинания и приводим к нижнему регистру
-        clean_content = re.sub(r'[^\w\s]', '', content.lower())
-        words = clean_content.split()
+    def _generate_html_report(self, content: str, metrics: Dict[str, Any]) -> str:
+        """Генерация HTML-отчета о качестве статьи
         
-        # Игнорируем стоп-слова
-        stop_words = {'и', 'в', 'на', 'с', 'по', 'для', 'не', 'что', 'это', 'от', 'до', 'при', 'к', 'а', 'но', 'или'}
-        words = [word for word in words if len(word) > 3 and word not in stop_words]
+        Args:
+            content (str): Текст статьи
+            metrics (Dict[str, Any]): Метрики качества
+            
+        Returns:
+            str: HTML-отчет
+        """
+        # Форматирование отчета
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчет о качестве статьи</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.6; color: #333; }}
+        h1, h2, h3 {{ color: #444; }}
+        .container {{ max-width: 800px; margin: 0 auto; }}
+        .metrics {{ display: flex; flex-wrap: wrap; margin: 20px 0; }}
+        .metric-card {{ background: #f5f5f5; border-radius: 5px; padding: 15px; margin: 10px; flex: 1 1 200px; }}
+        .metric-value {{ font-size: 24px; font-weight: bold; margin: 10px 0; }}
+        .good {{ color: green; }}
+        .moderate {{ color: orange; }}
+        .poor {{ color: red; }}
+        .keyword-list {{ display: flex; flex-wrap: wrap; }}
+        .keyword {{ background: #e9f7fe; padding: 5px 10px; margin: 5px; border-radius: 3px; }}
+        .errors {{ background: #fff0f0; padding: 10px; border-left: 4px solid #ff6b6b; margin: 20px 0; }}
+        .summary {{ background: #f9f9f9; padding: 15px; margin: 20px 0; border-radius: 5px; }}
         
-        word_freq = {}
-        for word in words:
-            word_freq[word] = word_freq.get(word, 0) + 1
+        @media (max-width: 600px) {{
+            .metric-card {{ flex: 1 1 100%; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Отчет о качестве статьи</h1>
         
-        # Сортируем слова по частоте
-        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        <div class="summary">
+            <h2>Общая оценка</h2>
+            <p>Статья """
         
-        return {
-            "main_keywords": [word for word, freq in sorted_words[:5]],
-            "word_frequencies": word_freq
-        }
-
-    def _check_structure(self, content: str) -> Dict:
-        """Проверяет структуру статьи"""
-        # Проверяем наличие заголовка (может быть с # или без)
-        has_title = bool(re.search(r'^#\s+.+$', content, re.MULTILINE)) or bool(re.search(r'^[А-Я][^\n]+$', content, re.MULTILINE))
+        # Добавляем общее заключение о качестве
+        if all([
+            metrics.get('has_sufficient_length', False),
+            metrics.get('has_good_readability', False),
+            metrics.get('has_good_structure', False)
+        ]):
+            html += '<span class="good">соответствует всем критериям качества</span>.'
+        elif not metrics.get('has_sufficient_length', False):
+            html += '<span class="poor">слишком короткая</span>.'
+        elif not metrics.get('has_good_readability', False):
+            html += '<span class="poor">сложна для чтения</span>.'
+        elif not metrics.get('has_good_structure', False):
+            html += '<span class="poor">имеет недостаточную структуру</span>.'
+        else:
+            html += '<span class="moderate">требует улучшения</span>.'
         
-        # Проверяем наличие подзаголовков (может быть с ## или без)
-        has_sections = len(re.findall(r'^##\s+.+$', content, re.MULTILINE)) >= 3 or len(re.findall(r'^[А-Я][^\n]+$', content, re.MULTILINE)) >= 4
+        html += """</p>
+        </div>
         
-        # Проверяем наличие заключения
-        has_conclusion = bool(re.search(r'(?i)заключение|вывод|итог|подведем итоги', content))
+        <h2>Основные метрики</h2>
+        <div class="metrics">
+            <div class="metric-card">
+                <h3>Количество слов</h3>
+                <div class="metric-value"""
+                
+        # Цвет для количества слов
+        word_count = metrics.get('word_count', 0)
+        if word_count >= self.min_word_count:
+            html += ' good'
+        else:
+            html += ' poor'
+            
+        html += f'"{word_count}</div>'
+        html += f'<p>Минимум: {self.min_word_count}</p>'
+        html += '</div>'
         
-        return {
-            "has_proper_structure": all([has_title, has_sections, has_conclusion]),
-            "has_title": has_title,
-            "has_sections": has_sections,
-            "has_conclusion": has_conclusion
-        }
-
-    def _meets_quality_standards(self, metrics: Dict) -> bool:
-        """Проверяет соответствие стандартам качества"""
-        return (
-            metrics["readability"]["score"] >= self.target_readability and
-            len(metrics["keywords"]["main_keywords"]) >= 3 and
-            metrics["structure"]["has_proper_structure"]
-        ) 
+        # Метрика читабельности
+        html += """
+            <div class="metric-card">
+                <h3>Читабельность</h3>
+                <div class="metric-value"""
+                
+        readability = metrics.get('readability_score', 0)
+        if readability >= self.min_readability:
+            html += ' good'
+        else:
+            html += ' poor'
+            
+        html += f'">{readability:.1f}</div>'
+        html += f'<p>{metrics.get("readability_level", "Не определено")}</p>'
+        html += '</div>'
+        
+        # Метрика структуры
+        html += """
+            <div class="metric-card">
+                <h3>Структура</h3>
+                <div class="metric-value"""
+                
+        headings = metrics.get('headings_count', 0)
+        if headings >= self.min_headings:
+            html += ' good'
+        else:
+            html += ' poor'
+            
+        html += f'">{headings}</div>'
+        html += f'<p>Заголовков (минимум {self.min_headings})</p>'
+        html += '</div>'
+        
+        # Метрика параграфов
+        html += """
+            <div class="metric-card">
+                <h3>Параграфы</h3>
+                <div class="metric-value"""
+                
+        paragraphs = metrics.get('paragraphs_count', 0)
+        if paragraphs >= self.min_paragraphs:
+            html += ' good'
+        else:
+            html += ' poor'
+            
+        html += f'">{paragraphs}</div>'
+        html += f'<p>Параграфов (минимум {self.min_paragraphs})</p>'
+        html += '</div>'
+        
+        # Закончим метрики
+        html += """
+        </div>
+        
+        <h2>Детальные метрики</h2>
+        <div class="metrics">
+            <div class="metric-card">
+                <h3>Предложения</h3>
+                <div class="metric-value">{}</div>
+                <p>Средняя длина: {:.1f} слов</p>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Стилистические элементы</h3>
+                <p>Выделенный текст: {}</p>
+                <p>Элементы списков: {}</p>
+            </div>
+        </div>
+        """.format(
+            metrics.get('sentence_count', 0),
+            metrics.get('avg_sentence_length', 0),
+            metrics.get('bold_count', 0),
+            metrics.get('list_item_count', 0)
+        )
+        
+        # Добавляем ключевые слова
+        html += """
+        <h2>Ключевые слова</h2>
+        <div class="keyword-list">
+        """
+        
+        for keyword in metrics.get('keywords', [])[:15]:
+            html += f'<span class="keyword">{keyword}</span>'
+            
+        html += """
+        </div>
+        """
+        
+        # Добавляем ошибки, если они есть
+        errors = metrics.get('errors', [])
+        if errors:
+            html += """
+            <h2>Выявленные проблемы</h2>
+            <div class="errors">
+                <ul>
+            """
+            
+            for error in errors:
+                html += f'<li>{error}</li>'
+                
+            html += """
+                </ul>
+            </div>
+            """
+            
+        # Завершаем HTML
+        html += """
+    </div>
+</body>
+</html>"""
+        
+        return html 

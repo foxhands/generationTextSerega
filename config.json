@@ -17,7 +17,13 @@
     "backup_dir": "backups",
     "formats": [
       "txt",
-      "markdown"
+      "markdown",
+      "html"
     ]
+  },
+  "web": {
+    "host": "localhost",
+    "port": 5000,
+    "debug": false
   }
 }

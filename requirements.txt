@@ -5,4 +5,7 @@ flask==3.0.2
 flask-wtf==1.2.1
 python-dotenv==1.0.1
 beautifulsoup4==4.12.3
-textstat==0.7.3 
+textstat==0.7.3
+markdown==3.5
+pytest==8.0.0
+argparse==1.4.0 
